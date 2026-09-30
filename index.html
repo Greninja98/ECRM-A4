@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EVO313 eCRM A4 PDF Generator</title>
+    
+    <!-- PDF-Lib for generating final PDF -->
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    <!-- SortableJS for drag and drop reordering -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    
+    <!-- PDF.js for reading and splitting uploaded PDFs into image pages -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+
+    <!-- Cropper.js for image cropping -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+    
+    <style>
+        :root {
+            --bg-color: #fdfbf8;
+            --container-bg: #ffffff;
+            --text-main: #4a3c31;
+            --text-light: #8c7a6b;
+            --gold-primary: #cba365;
+            --gold-hover: #b38c52;
+            --gold-gradient: linear-gradient(135deg, #d4af37, #b8860b);
+            --border-color: #ebdaca;
+            --danger-color: #a0522d;
+            --success-color: #8b7355;
+        }
+
+        body { 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            padding: 20px; 
+            max-width: 750px; 
+            margin: 0 auto; 
+            background-color: var(--bg-color);
+            color: var(--text-main);
+        }
+
+        .container { 
+            background: var(--container-bg); 
+            border: 1px solid var(--border-color); 
+            padding: 30px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 20px rgba(203, 163, 101, 0.08);
+        }
+
+        h2 { 
+            text-align: center; 
+            color: var(--gold-primary); 
+            font-weight: 400; 
+            letter-spacing: 1px;
+            margin-bottom: 30px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 15px;
+        }
+
+        .control-group { margin-bottom: 25px; }
+        .control-group label { 
+            font-weight: 600; 
+            display: block; 
+            margin-bottom: 10px; 
+            color: var(--text-main);
+            font-size: 14px;
+        }
+
+        input[type="text"], input[type="file"] { 
+            width: 100%; 
+            padding: 10px 12px; 
+            box-sizing: border-box; 
+            margin-bottom: 5px; 
+            border: 1px solid var(--border-color); 
+            border-radius: 6px;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--gold-primary);
+            box-shadow: 0 0 0 2px rgba(203, 163, 101, 0.2);
+        }
+        
+        /* File List Styles */
+        #fileList { list-style-type: none; padding: 0; margin: 0 0 20px 0; }
+        .file-item { 
+            display: flex; 
+            align-items: center; 
+            padding: 12px; 
+            border: 1px solid var(--border-color); 
+            margin-bottom: 10px; 
+            border-radius: 8px; 
+            background: #fff; 
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+        .file-item:hover {
+            box-shadow: 0 2px 8px rgba(203, 163, 101, 0.15);
+        }
+        
+        /* Drag Handle Styles */
+        .drag-handle { 
+            cursor: grab; 
+            font-size: 20px; 
+            color: var(--gold-primary); 
+            padding: 0 15px 0 5px; 
+            user-select: none; 
+            display: flex; 
+            align-items: center;
+        }
+        .drag-handle:active { cursor: grabbing; color: var(--gold-hover);}
+        .sortable-ghost { 
+            opacity: 0.5; 
+            background-color: var(--bg-color); 
+            border: 1px dashed var(--gold-primary);
+        }
+        
+        .file-item img { 
+            width: 55px; 
+            height: 55px; 
+            object-fit: cover; 
+            margin-right: 15px; 
+            border: 1px solid var(--border-color); 
+            border-radius: 6px; 
+            background: #fff; 
+            cursor: pointer;
+        }
+        
+        .file-name { 
+            flex-grow: 1; 
+            word-break: break-all; 
+            font-size: 14px; 
+            color: var(--text-main);
+        }
+        
+        .action-btns button { 
+            padding: 6px 14px; 
+            font-size: 12px; 
+            border-radius: 4px; 
+            border: 1px solid var(--border-color); 
+            background: white; 
+            cursor: pointer; 
+            margin-left: 8px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .action-btns .btn-crop { border-color: var(--success-color); color: var(--success-color); }
+        .action-btns .btn-crop:hover { background: var(--success-color); color: white; }
+        
+        .action-btns .btn-delete { border-color: var(--danger-color); color: var(--danger-color); }
+        .action-btns .btn-delete:hover { background: var(--danger-color); color: white; }
+
+        .btn-primary { 
+            width: 100%; 
+            padding: 14px 15px; 
+            background: var(--gold-gradient); 
+            color: white; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            font-weight: bold;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 10px rgba(184, 134, 11, 0.3);
+            transition: opacity 0.3s;
+        }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-primary:disabled { background: #dcd3c6; box-shadow: none; cursor: not-allowed; color: #999; }
+        
+        #status { margin-top: 15px; font-weight: bold; text-align: center; font-size: 14px; }
+
+        /* Modal Styles */
+        #cropModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(74, 60, 49, 0.85); z-index: 1000; padding: 20px; box-sizing: border-box; }
+        .modal-content { background: var(--container-bg); padding: 25px; border-radius: 12px; max-width: 800px; margin: 0 auto; height: 90%; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .modal-content h3 { color: var(--gold-primary); margin-top: 0; font-weight: 400; }
+        .img-container { flex-grow: 1; min-height: 0; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        .img-container img { display: block; max-width: 100%; }
+        .modal-footer { margin-top: 20px; text-align: right; }
+        .modal-footer button { padding: 10px 20px; cursor: pointer; margin-left: 10px; border-radius: 6px; font-weight: bold; font-size: 14px;}
+        .btn-cancel { background: #fff; border: 1px solid var(--border-color); color: var(--text-main); }
+        .btn-cancel:hover { background: var(--bg-color); }
+        .btn-save { background: var(--gold-gradient); color: white; border: none; }
+        .btn-save:hover { opacity: 0.9; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Document Processor</h2>
+    
+    <div class="control-group">
+        <label>1. Custom Output File Name:</label>
+        <input type="text" id="filenameInput" value="eCRM_Document" placeholder="Enter file name (without .pdf)">
+    </div>
+
+    <div class="control-group">
+        <label>2. Select Images (JPG/PNG) or PDFs (Will be split into pages):</label>
+        <input type="file" id="fileInput" accept="image/png, image/jpeg, application/pdf" multiple>
+    </div>
+
+    <div class="control-group">
+        <label>3. File Overview & Sequence (Drag ☰ to reorder):</label>
+        <ul id="fileList"></ul>
+        <div id="emptyState" style="text-align: center; color: var(--text-light); font-size: 14px; padding: 20px 0;">No files selected yet.</div>
+    </div>
+
+    <button id="convertBtn" class="btn-primary" onclick="generatePDF()" disabled>Generate A4 PDF</button>
+    <div id="status"></div>
+</div>
+
+<!-- Crop Modal -->
+<div id="cropModal">
+    <div class="modal-content">
+        <h3>Adjust Image</h3>
+        <div class="img-container">
+            <img id="cropImage" src="">
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeCropModal()">Cancel</button>
+            <button class="btn-save" onclick="applyCrop()">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const A4_WIDTH = 595.28;
+    const A4_HEIGHT = 841.89;
+    
+    let fileState = [];
+    let currentCropper = null;
+    let currentCropId = null;
+
+    const fileInput = document.getElementById('fileInput');
+    const fileListEl = document.getElementById('fileList');
+    const emptyStateEl = document.getElementById('emptyState');
+    const convertBtn = document.getElementById('convertBtn');
+    const statusDiv = document.getElementById('status');
+
+    new Sortable(fileListEl, {
+        handle: '.drag-handle',
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        onEnd: function (evt) {
+            const movedItem = fileState.splice(evt.oldIndex, 1)[0];
+            fileState.splice(evt.newIndex, 0, movedItem);
+        }
+    });
+
+    fileInput.addEventListener('change', async function(e) {
+        const newFiles = Array.from(e.target.files);
+        if(newFiles.length === 0) return;
+
+        convertBtn.disabled = true;
+        statusDiv.textContent = "Loading and processing files... please wait.";
+        statusDiv.style.color = "var(--gold-primary)";
+
+        for (const file of newFiles) {
+            if (file.type === 'application/pdf') {
+                await processPDF(file);
+            } else if (file.type.startsWith('image/')) {
+                fileState.push({
+                    file: file,
+                    id: 'file_' + Math.random().toString(36).substr(2, 9),
+                    url: URL.createObjectURL(file),
+                    name: file.name
+                });
+            }
+        }
+        
+        fileInput.value = ''; 
+        renderList();
+        statusDiv.textContent = "";
+    });
+
+    async function processPDF(file) {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+        const numPages = pdf.numPages;
+
+        for (let i = 1; i <= numPages; i++) {
+            const page = await pdf.getPage(i);
+            const viewport = page.getViewport({ scale: 2.0 }); 
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            await page.render({ canvasContext: context, viewport: viewport }).promise;
+
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+            fileState.push({
+                file: blob,
+                id: 'file_' + Math.random().toString(36).substr(2, 9),
+                url: URL.createObjectURL(blob),
+                name: `${file.name.replace('.pdf', '')} - Page ${i}`
+            });
+        }
+    }
+
+    function renderList() {
+        fileListEl.innerHTML = '';
+        
+        if (fileState.length === 0) {
+            emptyStateEl.style.display = 'block';
+            convertBtn.disabled = true;
+            return;
+        }
+
+        emptyStateEl.style.display = 'none';
+        convertBtn.disabled = false;
+
+        fileState.forEach((item) => {
+            const li = document.createElement('li');
+            li.className = 'file-item';
+            li.dataset.id = item.id;
+
+            li.innerHTML = `
+                <div class="drag-handle" title="Drag to reorder">☰</div>
+                <img src="${item.url}" alt="preview" onclick="openCropModal('${item.id}')" title="Click to Crop">
+                <div class="file-name">${item.name}</div>
+                <div class="action-btns">
+                    <button class="btn-crop" onclick="openCropModal('${item.id}')">Crop</button>
+                    <button class="btn-delete" onclick="removeItem('${item.id}')">Delete</button>
+                </div>
+            `;
+            fileListEl.appendChild(li);
+        });
+    }
+
+    window.removeItem = function(id) {
+        const index = fileState.findIndex(item => item.id === id);
+        if (index > -1) {
+            URL.revokeObjectURL(fileState[index].url);
+            fileState.splice(index, 1);
+            renderList();
+        }
+    };
+
+    window.openCropModal = function(id) {
+        const item = fileState.find(x => x.id === id);
+        if(!item) return;
+        currentCropId = id;
+
+        const cropImg = document.getElementById('cropImage');
+        cropImg.src = item.url;
+        document.getElementById('cropModal').style.display = 'block';
+
+        if(currentCropper) currentCropper.destroy();
+        
+        currentCropper = new Cropper(cropImg, {
+            viewMode: 2,
+            autoCropArea: 0.9,
+            background: false
+        });
+    };
+
+    window.closeCropModal = function() {
+        document.getElementById('cropModal').style.display = 'none';
+        if(currentCropper) {
+            currentCropper.destroy();
+            currentCropper = null;
+        }
+    };
+
+    window.applyCrop = function() {
+        if(!currentCropper) return;
+        
+        currentCropper.getCroppedCanvas().toBlob(blob => {
+            const index = fileState.findIndex(x => x.id === currentCropId);
+            if(index > -1) {
+                const oldName = fileState[index].name;
+                URL.revokeObjectURL(fileState[index].url);
+                
+                fileState[index].file = blob;
+                fileState[index].url = URL.createObjectURL(blob);
+                fileState[index].name = oldName; 
+                
+                renderList();
+            }
+            closeCropModal();
+        }, 'image/jpeg', 0.95);
+    };
+
+    async function generatePDF() {
+        if (fileState.length === 0) return;
+
+        let customFileName = document.getElementById('filenameInput').value.trim();
+        if (!customFileName) customFileName = "eCRM_Document";
+        
+        try {
+            convertBtn.disabled = true;
+            statusDiv.textContent = "Processing and converting... please wait.";
+            statusDiv.style.color = "var(--gold-primary)";
+
+            const { PDFDocument } = PDFLib;
+            const mergedPdf = await PDFDocument.create();
+
+            for (let i = 0; i < fileState.length; i++) {
+                const file = fileState[i].file;
+                const fileBytes = await file.arrayBuffer();
+                let image;
+
+                if (file.type === 'image/jpeg' || file.type === 'image/jpg' || !file.type) {
+                    image = await mergedPdf.embedJpg(fileBytes);
+                } else if (file.type === 'image/png') {
+                    image = await mergedPdf.embedPng(fileBytes);
+                }
+
+                if(image) {
+                    const page = mergedPdf.addPage([A4_WIDTH, A4_HEIGHT]);
+                    
+                    const scale = Math.min(A4_WIDTH / image.width, A4_HEIGHT / image.height);
+                    const scaledDims = image.scale(scale);
+
+                    page.drawImage(image, {
+                        x: (A4_WIDTH - scaledDims.width) / 2,
+                        y: (A4_HEIGHT - scaledDims.height) / 2,
+                        width: scaledDims.width,
+                        height: scaledDims.height,
+                    });
+                }
+            }
+
+            const pdfBytes = await mergedPdf.save();
+            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${customFileName}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            statusDiv.textContent = `Success! ${customFileName}.pdf downloaded.`;
+            statusDiv.style.color = "var(--success-color)";
+
+        } catch (error) {
+            console.error(error);
+            statusDiv.textContent = "Conversion failed. Please check the console.";
+            statusDiv.style.color = "var(--danger-color)";
+        } finally {
+            convertBtn.disabled = false;
+        }
+    }
+</script>
+
+</body>
+</html>
